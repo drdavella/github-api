@@ -61,6 +61,54 @@ class GithubRepo:
         return [ x['node']['name'] for x in edges ]
 
 
+    def get_issues(self):
+        query = """
+        query RepoIssueQuery($owner: String!, $name: String!, $after: String) {
+          repository(owner:$owner, name:$name) {
+            issues(first:100, after:$after) {
+              totalCount
+              pageInfo {
+                hasNextPage
+              }
+              edges {
+                cursor
+                node {
+                  number
+                  title
+                  body
+                  bodyText
+                  bodyHTML
+                  labels(first:100) {
+                    edges {
+                      node {
+                        name
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+        """
+
+        variables = dict(owner=self.owner, name=self.name)
+
+        edges = []
+
+        while True:
+            results = self._run_query(query, variables)
+            issues = results['data']['repository']['issues']
+            edges.extend(issues['edges'])
+            if not issues['pageInfo']['hasNextPage']:
+                break
+
+            cursor = issues['edges'][-1]['cursor']
+            variables['after'] = cursor
+
+        return [ x['node'] for x in edges ]
+
+
 # For quick interactive testing
 if __name__ == '__main__':
     import os
