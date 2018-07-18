@@ -12,35 +12,47 @@ class GithubRepo:
         self.name = name
         self.api_key = api_key
 
-    def _run_query(self, query):
+    def _run_query(self, query, variables=None):
+
+        json = dict(query=query)
+        if variables:
+            json['variables'] = variables
 
         headers = { "Authorization": "bearer {}".format(self.api_key) }
-        result = requests.post(API_ENDPOINT, json={'query': query}, headers=headers)
+        result = requests.post(API_ENDPOINT, json=json, headers=headers)
         if result.status_code != 200:
             raise RuntimeError("Query failed to run: ", result.message)
 
-        return result.json()
+        json_data = result.json()
+        if 'errors' in json_data:
+            msg = '\n'.join([x['message'] for x in json_data['errors']])
+            raise RuntimeError("Query failed to run: " + msg)
+
+        return json_data
+
 
     def get_label_names(self):
         query = """
-        query {{
-          repository(owner:"{}", name:"{}") {{
-            labels(last:100) {{
+        query RepoLabelQuery($owner: String!, $name: String!) {
+          repository(owner:$owner, name:$name) {
+            labels(last:100) {
               totalCount
-              edges {{
-                node {{
+              edges {
+                node {
                   name
-                }}
-              }}
-            }}
-          }}
-        }}
-        """.format(self.owner, self.name)
+                }
+              }
+            }
+          }
+        }
+        """
+
+        variables = dict(owner=self.owner, name=self.name)
 
         edges = []
 
         while True:
-            results = self._run_query(query)
+            results = self._run_query(query, variables=variables)
             total_count = results['data']['repository']['labels']['totalCount']
             edges.extend(results['data']['repository']['labels']['edges'])
             if len(edges) == total_count:
