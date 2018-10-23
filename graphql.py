@@ -61,6 +61,89 @@ class GithubRepo:
         return [ x['node']['name'] for x in edges ]
 
 
+    def get_milestone_id(self, title):
+        query = """
+        query MilestoneIDQuery($owner:String!, $name:String!, $after:String) {
+          repository(owner:$owner, name:$name) {
+            milestones(first:100, after:$after) {
+              totalCount
+              pageInfo {
+                hasNextPage
+              }
+              edges {
+                cursor
+                node {
+                  title
+                  number
+                }
+              }
+            }
+          }
+        }
+        """
+
+        variables = dict(owner=self.owner, name=self.name)
+
+        seen = 0
+
+        while True:
+            results = self._run_query(query, variables=variables)
+            milestones = results['data']['repository']['milestones']
+
+            for edge in milestones['edges']:
+                if edge['node']['title'] == title:
+                    return edge['node']['number']
+
+            seen += len(milestones['edges'])
+            if seen == milestones['totalCount']:
+                return -1
+
+            cursor = issues['edges'][-1]['cursor']
+            variables['after'] = cursor
+
+
+    def get_milestone_commits(self, number):
+        """
+        Commits are returned in reverse order: i.e. the most recent commit is
+        first in the list.
+        """
+
+        query = """
+        query MilestoneQuery($owner:String!, $name:String!, $number:Int!) {
+          repository(owner:$owner, name:$name) {
+            milestone(number:$number) {
+              title
+              number
+              pullRequests(first:50, states:[MERGED]) {
+                nodes {
+                  title
+                  commits(first:100) {
+                    nodes {
+                      commit {
+                       oid
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+        """
+
+        variables = dict(owner=self.owner, name=self.name, number=number)
+
+        commits = []
+
+        # TODO: eventually handle pagination
+        results = self._run_query(query, variables)
+        prs = results['data']['repository']['milestone']['pullRequests']['nodes']
+        for pr in prs:
+            commits.extend([x['commit']['oid'] for x in pr['commits']['nodes']])
+
+        return commits
+
+
     def get_issues(self):
         query = """
         query RepoIssueQuery($owner: String!, $name: String!, $after: String) {
