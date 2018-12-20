@@ -138,10 +138,7 @@ class GithubRepo:
         # TODO: eventually handle pagination
         results = self._run_query(query, variables)
         prs = results['data']['repository']['milestone']['pullRequests']['nodes']
-        for pr in prs:
-            commits.extend([x['commit']['oid'] for x in pr['commits']['nodes']])
-
-        return commits
+        return [ [x['commit']['oid'] for x in pr['commits']['nodes']] for pr in prs]
 
 
     def get_issues(self):
