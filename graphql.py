@@ -189,6 +189,31 @@ class GithubRepo:
         return [ x['node'] for x in edges ]
 
 
+    def get_pr_commits(self, pr_number):
+        query = """
+        query PRCommitQuery($owner: String!, $name: String!, $number: Int!) {
+          repository(owner:$owner, name:$name) {
+            pullRequest(number:$number) {
+              commits(first:100) {
+                nodes {
+                  commit {
+                    oid
+                  }
+                }
+              }
+            }
+          }
+        }
+        """
+
+        variables = dict(owner=self.owner, name=self.name, number=pr_number)
+
+        results = self._run_query(query, variables)
+
+        commits = results['data']['repository']['pullRequest']['commits']
+        return [ node['commit']['oid'] for node in commits['nodes'] ]
+
+
 # For quick interactive testing
 if __name__ == '__main__':
     import os
